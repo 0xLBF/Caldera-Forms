@@ -14,6 +14,7 @@ function CFState(formId, $ ){
 		self = this,
 		fields = {},
 		events = new CFEvents(this),
+		events_bind = new CFEvents(this),
 		unBound = {},
 		fieldVals  = {},
 		calcVals = {};
@@ -27,20 +28,22 @@ function CFState(formId, $ ){
 	 * @param formFields {Object} Should be flat field ID attribute : Field default
 	 */
 	this.init = function (formFields, calcDefaults) {
-
+		
 		for ( var id in formFields ){
+			var $field;
 			if( 'object' === typeof  calcDefaults[id] ){
 				if( 'calculation' == calcDefaults[id].type ){
 					bindCalcField(id,calcDefaults[id])
 				}
 
-			}else if( bindField(id)){
+			}else if( $field = bindField(id) ){
 				fieldVals[id] = formFields[id];
 				if( calcDefaults.hasOwnProperty(id) ){
 					calcVals[id] = calcDefaults[id];
 				}else{
 					calcVals[id] = null;
 				}
+				events_bind.trigger(id, $field);
 			}else{
 				fieldVals[id] = '';
 				unBound[id] = true;
@@ -175,20 +178,30 @@ function CFState(formId, $ ){
 	 * @param id {String} Field id attribute
 	 */
 	this.rebind = function(id){
-		bindField(id);
+		$field = bindField(id);
 
 		delete unBound[id];
+		if ( $field )
+			events_bind.trigger(id, $field);
 	};
 
-
 	/**
-	 * Accessor for the CFEvents object used for this state
+	 * Accessor for the CFEvents objects used for this state
 	 *
 	 * @since 1.5.3
+	 * 
+	 * @param event (optional String) Name of the event to subscribe to,
+	 * 		or subscribe to all events if omitted.
+	 * Note: The callback for events('bind') is passed the bound jQuery element, 
+	 * instead of the field value, as an argument.
 	 *
 	 * @returns {{subscribe: subscribe, detach: detach}}
 	 */
-	this.events = function(){
+	this.events = function(event = undefined){
+		var events_instance = events;
+		if ( event == 'bind' ) {
+			events_instance = events_bind;
+		}
 		return {
 			/**
 			 * Attach an event to change of an input in the state
@@ -200,7 +213,7 @@ function CFState(formId, $ ){
 			 */
 			subscribe: function( id, callback ){
 				if( inState(id)){
-					events.subscribe(id,callback);
+					events_instance.subscribe(id,callback);
 				}
 
 			},
@@ -213,7 +226,7 @@ function CFState(formId, $ ){
 			 * @param callback {Function|null} The callback function. Pass null to detach all.
 			 */
 			detach: function(id,callback){
-				events.detach(id,callback);
+				events_instance.detach(id,callback);
 			}
 		}
 	};
@@ -250,11 +263,8 @@ function CFState(formId, $ ){
 			});
 			calcVals[id] = findCalcVal( $( document.getElementById( id ) ) );
 			self.mutateState([$field.attr('id')],$field.val());
-			$field.trigger('cf.bind', {
-				field: $field.attr('id')
-			});
 
-			return true;
+			return $field;
 		} else {
 			$field = $('.' + id);
 			if ($field.length) {
@@ -336,13 +346,8 @@ function CFState(formId, $ ){
 
 
 					self.mutateState(id,val);
-					
-					$field.trigger('cf.bind', {
-						field: $field.attr('id')
-					});
-
 				});
-				return true;
+				return $field;
 			}
 
 

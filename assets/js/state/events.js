@@ -40,7 +40,7 @@ function CFEvents(state) {
 		}
 
 		events[id].forEach(function (callback) {
-			callback(state.getState(id),id);
+			callback(value,id);
 		});
 
 	};
